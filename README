@@ -1,0 +1,45 @@
+UNSOS FTS Service Desk Assistant — Streamlit Edition
+A Streamlit rebuild of the UNSOS FTS Service Desk chatbot, replacing the earlier client-side EmailJS escalation flow with server-side email dispatch via the Microsoft Graph API — the approach that actually works against a real Office 365/Exchange Online mailbox such as `unsos.service@un.org`.
+Why not EmailJS or plain SMTP?
+Microsoft disabled legacy SMTP AUTH (basic auth) by default for Exchange Online in 2022, and most enterprise/UN tenants layer MFA and Conditional Access on top of that. EmailJS's built-in connectors, and any "SMTP + username + password" approach, depend on exactly the legacy auth path Microsoft has been shutting off. That's almost certainly why a client-side EmailJS flow fails silently or errors out against a mailbox like `unsos.service@un.org`.
+The supported modern replacement is Microsoft Graph's app-only (client credentials) OAuth flow: no SMTP, no basic auth, works fine under MFA/Conditional Access, and is the same mechanism enterprise ticketing and mail-merge tools use against O365 today.
+What this app does
+Same knowledge base and location-aware logic as the original (Wi-Fi, SafeCom printing, Cisco/Teams telephony, FSS/Umoja, Unite ID, MFA, shared mailboxes, Windows activation), ported to Python.
+Location intake form (name, email, duty station, building/block), same as before.
+Chat interface matching queries against the knowledge base, with a generic first-phase-tips fallback for unmatched queries — so nothing is escalated without troubleshooting shown first.
+Escalation dispatch via Microsoft Graph, with:
+a visible "Creating ticket..." status while sending,
+a real success/failure result (never a false-positive "sent" message),
+and a pre-filled manual email template with a copy option shown automatically if the automated send fails, so a request is never silently lost.
+Setup
+1. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+2. Get Graph API credentials (requires UN ICT / Exchange admin)
+This is not something an individual user can self-provision — it requires an Entra ID app registration and admin consent. Full steps are in `.streamlit/secrets.toml.example`. In short:
+Register an app in the tenant's Entra ID.
+Grant it Graph Mail.Send (application) permission with admin consent.
+Generate a client secret.
+Restrict the app to only the `unsos.service@un.org` mailbox using an Exchange Online Application Access Policy (important — without this, the app can send as any mailbox in the tenant).
+3. Configure secrets
+Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and fill in the real `tenant_id`, `client_id`, and `client_secret`. Never commit the real file — it's already in `.gitignore`.
+For Streamlit Community Cloud, paste the same keys into the app's Secrets panel in the dashboard instead of using a file.
+4. Run it
+```bash
+streamlit run app.py
+```
+Graceful degradation
+If Graph credentials aren't configured yet (e.g. while UN ICT is still setting up the app registration), the app doesn't crash or silently fail — it shows the manual email template with a copy-ready ticket immediately, so the tool is still usable end-to-end from day one.
+Project structure
+```
+unsos-service-desk-streamlit/
+├── app.py
+├── requirements.txt
+├── .streamlit/
+│   └── secrets.toml.example
+├── .gitignore
+└── README.md
+```
+---
+Built by Gikonyo Ndugu as part of the UNSOS Service Desk chatbot project.
